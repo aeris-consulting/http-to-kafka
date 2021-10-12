@@ -1,0 +1,43 @@
+version: '3.5'
+services:
+
+  redis:
+    image: redis:6
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./test/resources/redis-v6.conf:/usr/local/etc/redis/redis.conf
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 0
+      KAFKA_LISTENERS: LOCAL://0.0.0.0:9093,PLAINTEXT://0.0.0.0:9092
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_ADVERTISED_LISTENERS: LOCAL://localhost:9093,PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,LOCAL:PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS: 'true'
+      KAFKA_CREATE_TOPICS: "http-request:1:1"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181/kafka
+    depends_on:
+      - zookeeper
+
+  http-to-kafka:
+    image: aerisconsulting/http-to-kafka
+    command:
+      - "--https=true"
+      - "--ssl-key=http-server.key"
+      - "--ssl-cert=http-server.crt"
+      - "--session-redis"
+      - "--kafka-bootstrap=kafka:9092"
+      - "--session-redis-uri=redis:6379"
+    ports:
+      - "18080:8080"
+      - "18443:8443"
