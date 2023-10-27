@@ -17,7 +17,7 @@ package kafka
 // https://github.com/confluentinc/confluent-kafka-go
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/spf13/cobra"
 	"http-to-kafka/datapublisher"
 	"log"

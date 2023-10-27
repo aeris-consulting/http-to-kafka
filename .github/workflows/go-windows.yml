@@ -14,24 +14,30 @@ jobs:
         os: [ 'windows-latest' ]
     steps:
       - name: Set up Go 1.17
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v4
         with:
           go-version: 1.17
         id: go
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Get dependencies
         working-directory: .
         run: go get -v -t -d ./...
 
+      - name: Set version as variable
+        run: | # Powershell
+          $VER = Get-Content VERSION -Raw
+          echo "Using the version $VER into $Env:GITHUB_ENV"
+          "VERSION=$VER" >> $Env:GITHUB_ENV
+
       - name: Build
         working-directory: .
-        run: mkdir http-to-kafka-windows-amd64 && go build -v -o http-to-kafka-windows-amd64 ./...
+        run: mkdir http-to-kafka-windows-amd64-${{ env.VERSION }} && go build -v -o http-to-kafka-windows-amd64-${{ env.VERSION }} ./...
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
-          name: http-to-kafka-windows-amd64
+          name: http-to-kafka-windows-amd64-${{ env.VERSION }}
           path: ./http-to-kafka-*

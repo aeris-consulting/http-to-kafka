@@ -13,7 +13,7 @@
 #   limitations under the License.
 
 # Builder: go-builder
-FROM golang:stretch as go-builder
+FROM golang as go-builder
 
 ENV GOPROXY=https://proxy.golang.org
 
@@ -24,9 +24,7 @@ RUN go build -v ./...
 RUN go install -v ./...
 
 # Final image
-FROM debian:stretch
-RUN apt -y update && apt -y upgrade && \
-    apt install -y net-tools bash
+FROM debian
 
 ENV TINI_VERSION v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /usr/local/bin/tini
