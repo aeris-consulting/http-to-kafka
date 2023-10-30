@@ -15,6 +15,7 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-contrib/sessions/redis"
@@ -24,6 +25,8 @@ import (
 	"http-to-kafka/datapublisher"
 	"log"
 	"net/http"
+	"strings"
+	"unsafe"
 )
 
 const defaultUsername = "test"
@@ -59,7 +62,7 @@ var (
 
 func init() {
 	AnonymousHandlers = []gin.HandlerFunc{}
-	AuthenticatedHandlers = []gin.HandlerFunc{verifySession}
+	AuthenticatedHandlers = []gin.HandlerFunc{verifyAuthorization}
 
 	config.user = loginForm{}
 	config.session = sessionConfiguration{}
@@ -99,14 +102,45 @@ func ConfigureEngine(router *gin.Engine) {
 	}
 }
 
-// verifySession only lets request through, when a valid session is already open. Otherwise, a response with http.StatusUnauthorized is returned.
-func verifySession(ctx *gin.Context) {
-	session := sessions.Default(ctx)
-	if session.Get("username") == nil {
-		ctx.AbortWithStatus(http.StatusUnauthorized)
-	} else {
+// verifyAuthorization only lets request through, when a valid session is already open. Otherwise, a response with http.StatusUnauthorized is returned.
+func verifyAuthorization(ctx *gin.Context) {
+	// The request should either be attached to a session or contain information to be accepted.
+	if verifySession(ctx) || verifyBasicAuthentication(ctx) {
 		ctx.Next()
+	} else {
+		ctx.AbortWithStatus(http.StatusUnauthorized)
 	}
+
+}
+
+// verifySession checks whether a valid session is attached to the request context.
+func verifySession(ctx *gin.Context) bool {
+	session := sessions.Default(ctx)
+	return session.Get("username") != nil
+}
+
+// verifyBasicAuthentication checks whether a basic authentication is provided into the request.
+func verifyBasicAuthentication(ctx *gin.Context) bool {
+	successful := false
+
+	auth := ctx.Request.Header.Get("Authorization")
+	if auth != "" && strings.Index(auth, "Basic ") == 0 {
+		base64Credentials := strings.TrimPrefix(auth, "Basic ")
+		userAndPassword, err := base64.StdEncoding.DecodeString(base64Credentials)
+		if err == nil {
+			credentials := strings.Split(*(*string)(unsafe.Pointer(&userAndPassword)), ":")
+			if len(credentials) == 2 {
+				username := credentials[0]
+				password := credentials[1]
+				if username == config.user.Username && password == config.user.Password {
+					successful = true
+				}
+			}
+		} else {
+			log.Println(err)
+		}
+	}
+	return successful
 }
 
 // Home returns the welcome message.
@@ -121,8 +155,13 @@ func Login(ctx *gin.Context) {
 		if loginData == config.user {
 			session := sessions.Default(ctx)
 			session.Set("username", loginData.Username)
-			session.Save()
-			ctx.Redirect(http.StatusSeeOther, "/")
+			err := session.Save()
+			if err != nil {
+				log.Printf("ERROR: The login could not succeed for a technical reason: %v", err)
+				ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			} else {
+				ctx.Redirect(http.StatusSeeOther, "/")
+			}
 		} else {
 			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid login/password"})
 		}
@@ -141,6 +180,29 @@ func PushData(ctx *gin.Context) {
 		messageKey := []byte(ctx.GetHeader("message-key"))
 		for _, publisher := range datapublisher.RegisteredPublishers {
 			publisher.Publish(messageKey, message)
+		}
+		ctx.JSON(http.StatusAccepted, gin.H{})
+	}
+}
+
+type destination struct {
+	Destination string `uri:"destination" binding:"required"`
+}
+
+// PushDataToDestination publishes the received data to the specific destination.
+func PushDataToDestination(ctx *gin.Context) {
+	message, err := ctx.GetRawData()
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	} else {
+		var destination destination
+		if err := ctx.ShouldBindUri(&destination); err != nil {
+			ctx.JSON(400, gin.H{"msg": err})
+			return
+		}
+		messageKey := []byte(ctx.GetHeader("message-key"))
+		for _, publisher := range datapublisher.RegisteredPublishers {
+			publisher.PublishToDestination(destination.Destination, messageKey, message)
 		}
 		ctx.JSON(http.StatusAccepted, gin.H{})
 	}

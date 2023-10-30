@@ -36,8 +36,11 @@ All the request to push data have to be identified using a cookie obtained from 
 
 1. Post a request to the endpoint /login with a JSON payload as follows: {"username": "test", "password": "test"}
 The response contains a session cookie named aeris-http-to-kafka-session, that has to be reused in further requests.
-2. Post data with a request to the endpoint /data and any kind of payload. You can set the HTTP header "message-key" to specify the Kafka key to use.
-3. Invalidate the sessions by executing a Delete request to the endpoint /logout.
+2. Post data with a request to the endpoint /data and any kind of payload to send it to the default destination. You can set the HTTP header "message-key" to specify the Kafka key to use.
+3. Post data with a request to the endpoint /data/my-own-topic and any kind of payload to send it to the topic my-own-topic. Here also you can set the HTTP header "message-key" to specify the Kafka key to use.
+4. Close the session by executing a DELETE request to the endpoint /session.
+
+Alternatively to the session, you can provide a basic authentication header to each incoming request for a stateless workflow.
 
 Usage:
   http-to-kafka [flags]
@@ -48,7 +51,7 @@ Flags:
       --https                         enables the HTTPS server
       --kafka-bootstrap string        bootstrap for the Kafka client (default "localhost:9092")
       --kafka-configuration strings   general properties for the Kafka client, as key=value pairs
-      --kafka-topic string            topic to produce the Kafka records to (default "http-request")
+      --kafka-topic string            default topic to produce the Kafka records to (default "http-request")
       --password string               password for the HTTP login (default "test")
       --plain-port int                port for plain HTTP (default 8080)
       --session-redis                 enables the HTTP session persistence in Redis
@@ -67,7 +70,7 @@ Flags:
 
 ### Sign in
 
-Post a request to the endpoint /login with a JSON payload as follows:
+Post a request to the endpoint `/login` with a JSON payload as follows:
 
 ```
 {"username": "test", "password": "test"}
@@ -75,13 +78,28 @@ Post a request to the endpoint /login with a JSON payload as follows:
 
 The response contains a session cookie to be reused in further requests to push data.
 
+### Stateless workflow
+
+When using session is not desired or possible, you can also send the credentials as basic authentication header
+to each sent request.
+
 ### Push data
 
-Post a request to the endpoint /data with any kind of payload. Do not forget to add the session cookie to pass through
-the security filter.
+Post a request to the endpoint `/data` with any kind of payload. Do not forget to add the session cookie or 
+the basic authentication header to pass through the security filter.
 
-If you want to set a key on the message published to Kafka, you can set the HTTP header "message-key".
+If you want to set a key on the message published to Kafka, you can set the HTTP header `message-key`.
+
+To specify the destination topic instead of using the configured default, use the URL `/data/my-own-topic` where
+`my-own-topic` is the name of the topic when the payload is to be sent.
 
 ### Close the session
 
-Execute a Delete request to the endpoint /logout to invalidate the session.
+Execute a DELETE request to the endpoint `/session` to invalidate the session.
+
+### Roadmap
+
+1. Improve logging
+1. Save the HTTP header `Content-Type` as header of the produced Kafka message.
+1. Support OAuth2 authentication.
+1. Support other messaging platform.

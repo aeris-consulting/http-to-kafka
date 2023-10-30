@@ -50,17 +50,24 @@ var (
 )
 
 func (k kafkaDataPublisher) Publish(key []byte, message []byte) {
-	k.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{Topic: &config.topic},
+	k.PublishToDestination(config.topic, key, message)
+}
+
+func (k kafkaDataPublisher) PublishToDestination(destination string, key []byte, message []byte) {
+	err := k.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &destination},
 		Key:            key,
 		Value:          message,
 	}, nil)
+	if err != nil {
+		log.Printf("ERROR: The content could not be sent to the destination %s: %v", destination, err)
+	}
 }
 
 // InitCommand configures the command-line options for the Kafka client.
 func InitCommand(rootCommand *cobra.Command) {
 	rootCommand.PersistentFlags().StringVar(&(config.bootstrap), "kafka-bootstrap", defaultBootstrap, "bootstrap for the Kafka client")
-	rootCommand.PersistentFlags().StringVar(&(config.topic), "kafka-topic", defaultTopic, "topic to produce the Kafka records to")
+	rootCommand.PersistentFlags().StringVar(&(config.topic), "kafka-topic", defaultTopic, "default topic to produce the Kafka records to")
 	rootCommand.PersistentFlags().StringSliceVar(&(config.properties), "kafka-configuration", []string{}, "general properties for the Kafka client, as key=value pairs")
 }
 

@@ -16,6 +16,7 @@ package datapublisher
 
 type DataPublisher interface {
 	Publish(key []byte, message []byte)
+	PublishToDestination(destination string, key []byte, message []byte)
 }
 
 var (
