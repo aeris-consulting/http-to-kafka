@@ -12,27 +12,37 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+
 # Builder: go-builder
-FROM golang as go-builder
+ARG GO_VERSION=1.21
+FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:${GO_VERSION} as go-builder
+
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
 
 ENV GOPROXY=https://proxy.golang.org
 
-WORKDIR /go/src/http-to-kafka
-COPY . .
+WORKDIR /app/
+ADD . .
 RUN go get -v -t -d ./...
-RUN go build -v ./...
-RUN go install -v ./...
+RUN GO_ENABLED=0 go build -ldflags="-w -s" -o /bin -v ./...
 
 # Final image
-FROM debian
+FROM --platform=${TARGETPLATFORM:-linux/amd64} debian
 
 ENV TINI_VERSION v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /usr/local/bin/tini
 RUN chmod +x /usr/local/bin/tini
 
 WORKDIR /http-to-kafka
-COPY --from=go-builder /go/bin/http-to-kafka .
-COPY http-server.* .
+COPY --from=go-builder /bin/http-to-kafka .
+ADD http-server.* .
+
+RUN useradd -ms /bin/bash http-to-kafka
+RUN chown -R http-to-kafka:root /http-to-kafka && \
+    chmod -R 770 /http-to-kafka
 
 COPY entrypoint.sh /usr/local/bin
 RUN chmod +x /usr/local/bin/entrypoint.sh

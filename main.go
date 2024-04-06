@@ -158,9 +158,9 @@ func setupRouter() *gin.Engine {
 	r.DELETE("/session", append(handlers.AnonymousHandlers, handlers.Logout)...)
 
 	// Authenticated endpoints.
-	r.GET("/", append(handlers.AuthenticatedHandlers, handlers.Home)...)
-	r.POST("/data", append(handlers.AuthenticatedHandlers, handlers.PushData)...)
-	r.POST("/data/:destination", append(handlers.AuthenticatedHandlers, handlers.PushDataToDestination)...)
+	r.GET("/", append(handlers.AnonymousHandlers, handlers.Home)...)
+	r.POST("/data", append(handlers.AnonymousHandlers, handlers.PushData)...)
+	r.POST("/data/:destination", append(handlers.AnonymousHandlers, handlers.PushDataToDestination)...)
 
 	return r
 }
